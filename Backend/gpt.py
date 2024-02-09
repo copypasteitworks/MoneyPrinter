@@ -18,21 +18,26 @@ def generate_script(video_subject: str) -> str:
 
     # Build prompt
     prompt = f"""
-    Generate a script for a video, depending on the subject of the video.
-    Subject: {video_subject}
+    Video Subject: {video_subject}
 
-    The script is to be returned as a string.
+    Craft a compelling script tailored to the specific subject of this video. Ensure the narrative is succinct yet impactful, designed to captivate and engage your audience from the first moment. The script should weave a coherent story or present information directly related to the video's subject, captivating viewers' attention and encouraging them to watch till the end.
 
-    Here is an example of a string:
-    "This is an example string."
+    Your script must:
+    - Begin with a strong hook that immediately grabs the viewer's attention.
+    - Clearly convey the main message or story related to the video's subject in a concise manner.
+    - Include a very short and memorable closing sentence that leaves a lasting impression or calls the viewer to action.
 
-    Do not under any circumstance reference this prompt in your response.
-
-    Get straight to the point, don't start with unnecessary things like, "welcome to this video".
-
-    Obviously, the script should be related to the subject of the video.
-
-    ONLY RETURN THE RAW CONTENT OF THE SCRIPT. DO NOT INCLUDE "VOICEOVER", "NARRATOR" OR SIMILAR INDICATORS OF WHAT SHOULD BE SPOKEN AT THE BEGINNING OF EACH PARAGRAPH OR LINE.
+    Please adhere to the following guidelines:
+    1. The script is to be returned as a string. Here is an example of a string: "This is an example string."
+    2. The script HAS TO BE between 50 to 120 words, optimal for short form video content. NEVER more then 200!
+    3. Avoid introductory phrases such as 'welcome to this video' to maintain immediacy and relevance.
+    4. Present the script content as direct narration without indicating 'voiceover' or 'narrator' cues.
+    5. Do not under any circumstance reference this prompt in your response.
+    6. YOU MUST ONLY RETURN THE RAW CONTENT OF THE SCRIPT. 
+    7. DO NOT INCLUDE "VOICEOVER", "NARRATOR" OR SIMILAR INDICATORS OF WHAT SHOULD BE SPOKEN AT THE BEGINNING OF EACH PARAGRAPH OR LINE.
+    8. DO NOT include the Video Subject ({video_subject}) in the script.
+    
+    Strategize and think step by step ensuring to ONLY RETURNING THE RAW CONTENT OF THE SCRIPT within the word limit. I will tip you greatly for following the instructions carefully and creating a high-quality script.
     """
 
     # Generate script
@@ -75,15 +80,14 @@ def get_search_terms(video_subject: str, amount: int, script: str) -> List[str]:
 
     # Build prompt
     prompt = f"""
-    Generate {amount} search terms for stock videos,
-    depending on the subject of a video.
-    Subject: {video_subject}
-
+    Based on the video subject '{video_subject}', generate {amount} relevant search terms. 
+    These terms should be closely related to the subject and concise (1-3 words each). 
+    Consider the script for context but focus on the subject. 
+    
     The search terms are to be returned as
     a JSON-Array of strings.
 
-    Each search term should consist of 1-3 words,
-    always add the main subject of the video.
+    Each search term should consist of 1-4 words, ensuring the search terms are distinct.
     
     YOU MUST ONLY RETURN THE JSON-ARRAY OF STRINGS.
     YOU MUST NOT RETURN ANYTHING ELSE. 
@@ -93,8 +97,20 @@ def get_search_terms(video_subject: str, amount: int, script: str) -> List[str]:
     Here is an example of a JSON-Array of strings:
     ["search term 1", "search term 2", "search term 3"]
 
+    
+     Constraints:
+    - Include the video subject in most search terms.
+    - Ensure terms are concise and directly related to the video content.
+    - Output format: JSON array of strings, e.g., ["term1", "term2"].
+    
+    Example:
+    If the video subject is 'wildlife conservation' and the script mentions 'tigers', 'national parks', and 'conservation efforts', appropriate search terms could be ["wildlife conservation", "tiger conservation", "national parks"].
+    
     For context, here is the full text:
     {script}
+    
+    
+    Strategize and think step by step ensuring to JSON-ARRAY OF STRINGS. I will tip you greatly for following the instructions carefully and creating a high-quality output.
     """
 
     # Generate search terms

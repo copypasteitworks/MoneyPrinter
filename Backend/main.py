@@ -9,11 +9,13 @@ from tiktokvoice import *
 from flask_cors import CORS
 from termcolor import colored
 from dotenv import load_dotenv
-from youtube import upload_video
-from apiclient.errors import HttpError
+from youtube import upload_video 
+from apiclient.errors import HttpError   
 from flask import Flask, request, jsonify
 from moviepy.config import change_settings
 
+from pydub import AudioSegment
+from pydub.effects import speedup
 # Load environment variables
 load_dotenv("../.env")
 
@@ -28,7 +30,7 @@ CORS(app)
 # Constants
 HOST = "0.0.0.0"
 PORT = 8080
-AMOUNT_OF_STOCK_VIDEOS = 5
+AMOUNT_OF_STOCK_VIDEOS = 1
 GENERATING = False
 
 
@@ -46,9 +48,9 @@ def generate():
 
         # Parse JSON
         data = request.get_json()
-
-        # Get 'automateYoutubeUpload' from the request data and default to False if not provided
-        automate_youtube_upload = data.get('automateYoutubeUpload', False)
+        print("request.get_json()",data)
+        # Get 'automateYoutubeUpload' from the request data and default to False if not provided 
+        automate_youtube_upload = data.get('automateYoutubeUpload', False)  
 
         # Print little information about the video which is to be generated
         print(colored("[Video to be generated]", "blue"))
@@ -78,10 +80,8 @@ def generate():
 
         # Search for a video of the given search term
         video_urls = []
-        # defines how many results it should query and search through
-        it = 15
-        # defines the minimum duration of each clip
-        min_dur = 10
+        #defines how many results it should query and search through
+        it = 10
         # Loop through all search terms,
         # and search for a video of the given search term
         for search_term in search_terms:
@@ -94,7 +94,7 @@ def generate():
                     }
                 )
             found_url = search_for_stock_videos(
-                search_term, os.getenv("PEXELS_API_KEY"), it, min_dur
+                search_term, os.getenv("PEXELS_API_KEY"), it
             )
             #check for duplicates
             for url in found_url:
@@ -144,6 +144,16 @@ def generate():
         # Remove empty strings
         sentences = list(filter(lambda x: x != "", sentences))
         paths = []
+        
+        
+        
+        
+        #### Silence for declipping
+        silence_duration = 1  # Duration of the silence in seconds
+        fps = 44100  # Frames per second (sample rate)
+        silence_clip = AudioFileClip("silent_half-second.wav").audio_fadein(0.1).audio_fadeout(0.1).subclip(0, 0.4) 
+        
+
         # Generate TTS for every sentence
         for sentence in sentences:
             if not GENERATING:
@@ -154,81 +164,84 @@ def generate():
                         "data": [],
                     }
                 )
-            current_tts_path = f"../temp/{uuid4()}.mp3"
+            current_tts_path = f"../temp/{uuid4()}.wav"
             tts(sentence, voice, filename=current_tts_path)
-            audio_clip = AudioFileClip(current_tts_path)
+            
+        #    #FASTER
+        #    sound = AudioSegment.from_file(current_tts_path, format=".wav")
+        #    sound_fast = speedup(sound,playback_speed=1.25)
+        #    file_handle = sound_fast.export(current_tts_path, format=".wav")
+            
+            #Declipp and add silence
+            fade_dur = 0.3
+            audio_clip = AudioFileClip(current_tts_path,fps=fps).audio_fadein(fade_dur).audio_fadeout(fade_dur)
             paths.append(audio_clip)
-
+            paths.append(silence_clip)
+            
+        paths.append(silence_clip)
+        
         # Combine all TTS files using moviepy
         final_audio = concatenate_audioclips(paths)
-        tts_path = f"../temp/{uuid4()}.mp3"
+        tts_path = f"../temp/{uuid4()}.wav"
         final_audio.write_audiofile(tts_path)
+        
+        #FASTER AUDIO
+        
+#        sound = AudioSegment.from_file(tts_path, format="mp3")
+#        sound_fast = speedup(sound,playback_speed=1.1)
+#        file_handle = sound_fast.export(tts_path, format="mp3")
+    
 
-        try:
-            subtitles_path = generate_subtitles(audio_path=tts_path, sentences=sentences, audio_clips=paths)
-        except Exception as e:
-            print(colored(f"[-] Error generating subtitles: {e}", "red"))
-            subtitles_path = None
-
+        # Generate subtitles
+        subtitles_path = generate_subtitles(audio_path=tts_path, sentences=sentences, audio_clips=paths)
+        
         # Concatenate videos
         temp_audio = AudioFileClip(tts_path)
         combined_video_path = combine_videos(video_paths, temp_audio.duration)
 
         # Put everything together
-        try:
-            final_video_path = generate_video(combined_video_path, tts_path, subtitles_path)
-        except Exception as e:
-            print(colored(f"[-] Error generating final video: {e}", "red"))
-            final_video_path = None
+        final_video_path = generate_video(combined_video_path, tts_path, subtitles_path)
         
         # Start Youtube Uploader
-        # Check if the CLIENT_SECRETS_FILE exists
-        client_secrets_file = os.path.abspath("./client_secret.json")
-        SKIP_YT_UPLOAD = False
-        if not os.path.exists(client_secrets_file):
-            SKIP_YT_UPLOAD = True
-            print(colored("[-] Client secrets file missing. YouTube upload will be skipped.", "yellow"))
-            print(colored("[-] Please download the client_secret.json from Google Cloud Platform and store this inside the /Backend directory.", "red"))
-
+        # Check if the CLIENT_SECRETS_FILE exists  
+        client_secrets_file = os.path.abspath("./client_secret.json")  
+        SKIP_YT_UPLOAD = False  
+        if not os.path.exists(client_secrets_file):  
+            SKIP_YT_UPLOAD = True  
+            print(colored("[-] Client secrets file missing. YouTube upload will be skipped.", "yellow"))  
+            print(colored("[-] Please download the client_secret.json from Google Cloud Platform and store this inside the /Backend directory.", "red"))  
+        
         # Only proceed with YouTube upload if the toggle is True  and client_secret.json exists.
-        if automate_youtube_upload and not SKIP_YT_UPLOAD:
-            # Define metadata for the video
-            title, description, keywords = generate_metadata(data["videoSubject"], script)
-
-            print(colored("[-] Metadata for YouTube upload:", "blue"))
-            print(colored("   Title: ", "blue"))
-            print(colored(f"   {title}", "blue"))
-            print(colored("   Description: ", "blue"))
-            print(colored(f"   {description}", "blue"))
-            print(colored("   Keywords: ", "blue"))
-            print(colored(f"  {', '.join(keywords)}", "blue"))
-
-            # Choose the appropriate category ID for your videos
-            video_category_id = "28"  # Science & Technology
-            privacyStatus = "private"  # "public", "private", "unlisted"
-            video_metadata = {
-                'video_path': os.path.abspath(f"../temp/{final_video_path}"),
-                'title': title,
-                'description': description,
-                'category': video_category_id,
-                'keywords': ",".join(keywords),
-                'privacyStatus': privacyStatus,
-            }
-
-            # Upload the video to YouTube
-            try:
-                # Unpack the video_metadata dictionary into individual arguments
-                video_response = upload_video(
-                    video_path=video_metadata['video_path'],
-                    title=video_metadata['title'],
-                    description=video_metadata['description'],
-                    category=video_metadata['category'],
-                    keywords=video_metadata['keywords'],
-                    privacy_status=video_metadata['privacyStatus']
-                )
-                print(f"Uploaded video ID: {video_response.get('id')}")
-            except HttpError as e:
-                print(f"An HTTP error {e.resp.status} occurred:\n{e.content}")
+        if automate_youtube_upload and not SKIP_YT_UPLOAD:  
+            # Define metadata for the video  
+            title, description, keywords = generate_metadata(data["videoSubject"], script)  
+  
+            # Choose the appropriate category ID for your videos  
+            video_category_id = "28"  # Science & Technology  
+            privacyStatus = "private"  # "public", "private", "unlisted"  
+            video_metadata = {  
+                'video_path': os.path.abspath(f"../temp/{final_video_path}"),  
+                'title': title,  
+                'description': description,  
+                'category': video_category_id,  
+                'keywords': ",".join(keywords),  
+                'privacyStatus': privacyStatus,  
+            }  
+  
+            # Upload the video to YouTube  
+            try:  
+                # Unpack the video_metadata dictionary into individual arguments  
+                video_response = upload_video(  
+                    video_path=video_metadata['video_path'],  
+                    title=video_metadata['title'],  
+                    description=video_metadata['description'],  
+                    category=video_metadata['category'],  
+                    keywords=video_metadata['keywords'],  
+                    privacy_status=video_metadata['privacyStatus']  
+                )  
+                print(f"Uploaded video ID: {video_response.get('id')}")  
+            except HttpError as e:  
+                print(f"An HTTP error {e.resp.status} occurred:\n{e.content}")  
 
         # Let user know
         print(colored(f"[+] Video generated: {final_video_path}!", "green"))
@@ -273,4 +286,4 @@ def cancel():
 
 
 if __name__ == "__main__":
-    app.run(debug=True, host=HOST, port=PORT)
+    app.run(debug=False, host=HOST, port=PORT)

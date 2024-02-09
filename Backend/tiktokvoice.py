@@ -102,7 +102,7 @@ def get_api_response() -> requests.Response:
 
 
 # saving the audio file
-def save_audio_file(base64_data: str, filename: str = "output.mp3") -> None:
+def save_audio_file(base64_data: str, filename: str = "output.wav") -> None:
     audio_bytes = base64.b64decode(base64_data)
     with open(filename, "wb") as file:
         file.write(audio_bytes)
@@ -121,7 +121,7 @@ def generate_audio(text: str, voice: str) -> bytes:
 def tts(
     text: str,
     voice: str = "none",
-    filename: str = "output.mp3",
+    filename: str = "output.wav",
     play_sound: bool = False,
 ) -> None:
     # checking if the website is available
